@@ -1,11 +1,11 @@
 # RoastSharp
 
-![Alt](/resources/roastsharp.gif "RoastSharp")
+![Alt](/resources/roastsharp.gif "RoastSharp")  
 
 ## Introduction
-An open-source, windows forms, .NET Framework application used to log coffee roasts
-Currently targetting .NET Framework 4.8
-This application uses the open-source library [LiveCharts](https://github.com/Live-Charts/Live-Charts)
+An open-source, windows forms, .NET Framework application used to log coffee roasts  
+Currently targetting .NET Framework 4.8  
+This application uses the open-source library [LiveCharts](https://github.com/Live-Charts/Live-Charts)  
 
 ## Features
 * Provides a live chart of bean temperature and rate over time
@@ -24,9 +24,9 @@ Download the latest release and run RoastSharp.exe
 3. Click **Connect**
 4. Once the smoothed bean temperature is active, click **Start**
     * If you would like to mark your roast, click the **FC Start**, **FC End**, **SC Start**, **SC End**, and **Event** buttons where applicable
-5. When the roast is complete, click **End**
+5. When the roast is complete, click **End**  
 
-![Alt](/resources/running.png "How to run RoastSharp")
+![Alt](/resources/running.png "How to run RoastSharp")  
 
 ## Temperature Sensor
 RoastSharp reads temperature from a serial port. The expected format is a single temperature measurement in deg Celsius per line.
@@ -70,5 +70,5 @@ void loop()
 Although the MAX6675 chip runs at just over 3 Hz, RoastSharp should technically work at any rate (untested!)
 
 ## Development
-Development can be done through Visual Studio
-The file names are self descriptive
+Development can be done through Visual Studio  
+The file names are self descriptive  
