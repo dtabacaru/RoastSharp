@@ -1,8 +1,6 @@
 # RoastSharp
 
-<video>
-  <source src="resources/roastsharp.mp4" type="video/mp4">
-</video>
+![Alt](/resources/roastsharp.gif "RoastSharp")
 
 ## Introduction
 An open-source, windows forms, .NET Framework application used to log coffee roasts
