@@ -2,14 +2,6 @@
 using LiveCharts.Configurations;
 using LiveCharts.Wpf;
 using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Diagnostics;
-using System.IO;
-using System.IO.Ports;
-using System.Linq;
-using System.Management;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Forms;
@@ -18,36 +10,41 @@ namespace RoastSharp
 {
     public partial class RoastSharpUi : Form
     {
-        private int    m_Eventno = 1;
-        private long   m_StartTicks = 0;
-        private double m_LastRorTemperature = 0;
-        private double m_LastRorTime = 0;
-        private double m_LastTemperature = 0;
-        private double m_LastTime = 0;
-        
-        private volatile bool m_Started = false;
-        private volatile bool m_Connected = false;
+        #region Members
 
-        private Stopwatch m_RoastStopwatch = new Stopwatch();
-        private StreamWriter m_RoastLog = null;
-        private ChartValues<XYDoubleMapper> m_TemperatureValues = new ChartValues<XYDoubleMapper>();
-        private ChartValues<XYDoubleMapper> m_AvgTemperatureValues = new ChartValues<XYDoubleMapper>();
-        private ChartValues<XYDoubleMapper> m_RateOfRiseValues = new ChartValues<XYDoubleMapper>();
-        private SerialPort m_SerialPort = null;
+        private readonly ChartValues<XYDoubleMapper> m_TemperatureValues = new ChartValues<XYDoubleMapper>();
+        private readonly ChartValues<XYDoubleMapper> m_AvgTemperatureValues = new ChartValues<XYDoubleMapper>();
+        private readonly ChartValues<XYDoubleMapper> m_RateOfRiseValues = new ChartValues<XYDoubleMapper>();
 
-        private List<double> m_MovingAvgHistory = new List<double>();
+        #endregion
 
-        public string ComString = string.Empty;
-        public int MovingAvgSamples = 16;
-        public int RorSampleTime = 15;
-        public int RorDelayTime = 30;
+        #region Constructors
 
         public RoastSharpUi()
         {
             InitializeComponent();
+            InitializeRoastSharp();
+            InitializeRoastChart();
+        }
 
-            SetComPort();
+        #endregion
 
+        #region Initializers
+
+        private void InitializeRoastSharp()
+        {
+            RoastSharp.TemperatureEvent += SetTemperature;
+            RoastSharp.AverageTemperatureEvent += SetAvgTemperature;
+            RoastSharp.ErrorRaisedEvent += RoastSharpErrorRaised;
+            RoastSharp.TimeEvent += SetTime;
+            RoastSharp.RateEvent += SetRor;
+            RoastSharp.PlotTemperatureEvent += PlotTemperature;
+            RoastSharp.PlotRateEvent += PlotRor;
+            RoastSharp.DisconnectedEvent += Disconnected;
+        }
+
+        private void InitializeRoastChart()
+        {
             RoastChart.DisableAnimations = true;
             RoastChart.Hoverable = false;
             RoastChart.DataTooltip = null;
@@ -69,12 +66,12 @@ namespace RoastSharp
                 Foreground = System.Windows.Media.Brushes.MintCream,
                 Separator = new LiveCharts.Wpf.Separator
                 {
+                    Step = 30000,
                     StrokeThickness = 0.5
                 },
                 LabelFormatter = value =>
                 {
-                    int minutes = (int)value / 60000;
-                    int seconds = (int)(value / 1000) - minutes * 60;
+                    (int minutes, int seconds) = Utils.GetMinuteSecondsFromMillis(value);
 
                     return string.Format("{0:00}", minutes) + ":" + string.Format("{0:00}", seconds);
                 },
@@ -147,201 +144,111 @@ namespace RoastSharp
             };
         }
 
-        private void SetComPort()
+        #endregion
+
+        #region RoastSharp Events
+
+        private void SetTemperature(object sender, TemperatureEventArgs e)
         {
-            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PnPEntity WHERE Caption like '%(COM%'"))
-            {
-                string[] portnames = SerialPort.GetPortNames();
-                IEnumerable<string> ports = searcher.Get().Cast<ManagementBaseObject>().ToList().Select(p => p["Caption"].ToString());
+            if (InvokeRequired)
+                Invoke(new MethodInvoker(() => { SetTemperature(sender, e); }));
 
-                List<string> comPorts = portnames.Select(n => n + "%" + ports.FirstOrDefault(s => s.Contains(n))).ToList();
-
-                foreach (string port in comPorts)
-                {
-                    if (port.ToLower().Contains("arduino"))
-                    {
-                        string[] parts = port.Split('%');
-                        ComString = parts[0];
-                        break;
-                    }
-                }
-            }
+            TempLabel.Text = string.Format("{0:000.00}", e.Temperature) + "°C";
         }
 
-        private void ReadData()
+        private void SetAvgTemperature(object sender, TemperatureEventArgs e)
         {
-            string dataString = m_SerialPort.ReadLine();
+            if (InvokeRequired)
+                Invoke(new MethodInvoker(() => { SetAvgTemperature(sender, e); }));
 
-            double temperature = Convert.ToDouble(dataString);
+            AvgTempLabel.Text = string.Format("{0:000.00}", e.Temperature) + "°C";
 
-            SetTemperature(temperature);
-
-            // Return here until we have accumulated m_MovingAvgSamples
-
-            if (m_MovingAvgHistory.Count < MovingAvgSamples)
-            {
-                m_MovingAvgHistory.Add(temperature);
-                return;
-            }
-            else
-            {
-                m_MovingAvgHistory.RemoveAt(0);
-                m_MovingAvgHistory.Add(temperature);
-            }
-
-            double avgTemp = 0;
-
-            foreach (double temp in m_MovingAvgHistory)
-            {
-                avgTemp += temp;
-            }
-
-            avgTemp /= m_MovingAvgHistory.Count;
-
-            SetAvgTemperature(avgTemp);
-
-            // Enable start button if we have accumulated m_MovingAvgSamples
-
-            if (!StartButton.Enabled && !m_Started && m_Connected)
+            if (!StartButton.Enabled && !RoastSharp.Started && RoastSharp.Connected)
             {
                 SetButtonEnable(StartButton, true);
             }
-
-            // Start plotting and logging
-
-            if (m_Started)
-            {
-                string timeString;
-
-                timeString = string.Format("{0:00}", m_RoastStopwatch.Elapsed.Minutes) + ":"
-                           + string.Format("{0:00}", m_RoastStopwatch.Elapsed.Seconds) + ":"
-                           + string.Format("{0:000}", m_RoastStopwatch.Elapsed.Milliseconds);
-
-                SetTime(timeString);
-
-                double logtime = ((double)(DateTime.Now.Ticks - m_StartTicks) / TimeSpan.TicksPerMillisecond) / 1000.0;
-
-                m_RoastLog.WriteLine(logtime + "," + temperature + "," + avgTemp);
-                
-                PlotTemperature(temperature, avgTemp, m_RoastStopwatch.ElapsedMilliseconds);
-
-                m_LastTemperature = temperature;
-                m_LastTime = m_RoastStopwatch.ElapsedMilliseconds;
-
-                // Don't calculate ROR until after m_RorDelayTime
-
-                if (m_RoastStopwatch.ElapsedMilliseconds < (RorDelayTime * 1000))
-                    return;
-
-                if (m_LastRorTemperature == 0)
-                {
-                    m_LastRorTemperature = avgTemp;
-                    m_LastRorTime = m_RoastStopwatch.ElapsedMilliseconds;
-                }
-
-                if ((m_RoastStopwatch.ElapsedMilliseconds - m_LastRorTime) > (RorSampleTime * 1000))
-                {
-                    double ror = ((avgTemp - m_LastRorTemperature) / ((m_RoastStopwatch.ElapsedMilliseconds - m_LastRorTime) / (1000))) * 60;
-
-                    SetRor(ror);
-                    PlotRor(ror, m_RoastStopwatch.ElapsedMilliseconds);
-
-                    m_LastRorTime = m_RoastStopwatch.ElapsedMilliseconds;
-                    m_LastRorTemperature = avgTemp;
-                }
-
-            }
         }
 
-        private void ReadTemperaturesTask()
+        private void RoastSharpErrorRaised(object sender, ErrorEventArgs e)
         {
-            while (m_Connected)
-            {
-                try
-                {
-                    ReadData();
-                }
-                catch { }
-            }
+            System.Windows.Forms.MessageBox.Show(e.Error, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+
+        private void SetTime(object sender, TimeEventArgs e)
+        {
+            if (TimeLabel.InvokeRequired)
+                TimeLabel.Invoke(new MethodInvoker(() => { SetTime(sender, e); }));
+
+            TimeLabel.Text = string.Format("{0:00}", e.Minutes) + ":"
+                           + string.Format("{0:00}", e.Seconds) + ":"
+                           + string.Format("{0:000}", e.Milliseconds);
+        }
+
+        private void SetRor(object sender, RateEventArgs e)
+        {
+            if (RorLabel.InvokeRequired)
+                RorLabel.Invoke(new MethodInvoker(() => { SetRor(sender, e); }));
+
+            RorLabel.Text = string.Format("{0:00.0}", e.Rate) + "°C/min";
+        }
+
+        private void PlotTemperature(object sender, PlotTemperatureEventArgs e)
+        {
+            m_TemperatureValues.Add(new XYDoubleMapper
+            {
+                X = e.ElapsedMilliseconds,
+                Y = e.Temperature
+            });
+
+            m_AvgTemperatureValues.Add(new XYDoubleMapper
+            {
+                X = e.ElapsedMilliseconds,
+                Y = e.AverageTemperature
+            });
+        }
+
+        private void PlotRor(object sender, PlotRateEventArgs e)
+        {
+            m_RateOfRiseValues.Add(new XYDoubleMapper
+            {
+                X = e.ElapsedMilliseconds,
+                Y = e.Rate
+            });
+        }
+
+        private void Disconnected(object sender, EventArgs e)
+        {
+            ResetForm();
+        }
+
+        #endregion
+
+        #region Button Events
 
         private void ConnectButton_Click(object sender, EventArgs e)
         {
-            if (!m_Connected)
+            if (!RoastSharp.Connected)
             {
-                try
-                {
-                    m_SerialPort = new SerialPort(ComString, 38400, Parity.None, 8, StopBits.One);
-                    m_SerialPort.Open();
-                    m_Connected = true;
-                }
-                catch (Exception exc)
-                {
-                    System.Windows.Forms.MessageBox.Show(exc.Message,"Error",MessageBoxButtons.OK,MessageBoxIcon.Error);
-                    return;
-                }
+                RoastSharp.Connect();
 
                 ConnectButton.Text = "Disconnect";
                 SettingsButton.Enabled = false;
-
-                // Flush
-                m_SerialPort.ReadExisting();
-
-                Task.Run(() =>
-                {
-                    ReadTemperaturesTask();
-                });
             }
             else
             {
-                m_Connected = false;
-                m_SerialPort.Close();
-                ConnectButton.Text = "Connect";
-
-                StartButton.Enabled = false;
-                FcStartButton.Enabled = false;
-                FcEndButton.Enabled = false;
-                ScEndButton.Enabled = false;
-                ScStartButton.Enabled = false;
-                EndButton.Enabled = false;
-                EventButton.Enabled = false;
-                SettingsButton.Enabled = true;
-
-                m_TemperatureValues.Clear();
-                m_AvgTemperatureValues.Clear();
-                m_RateOfRiseValues.Clear();
-                m_RoastStopwatch.Stop();
-                m_MovingAvgHistory.Clear();
-
-                TempLabel.Text = "000.00°C";
-                AvgTempLabel.Text = "000.00°C";
-                TimeLabel.Text = "00:00:000";
-                RorLabel.Text = "00.0°C/min";
-
-                m_Started = false;
+                RoastSharp.Disconnect();
             }
-
-        }
-
-        private void SetButtonEnable(System.Windows.Forms.Button button, bool enable)
-        {
-            if (button.InvokeRequired)
-                button.Invoke(new MethodInvoker(() => { SetButtonEnable(button, enable); }));
-
-            button.Enabled = enable;
         }
 
         private void StartButton_Click(object sender, EventArgs e)
         {
-            m_RoastLog = new StreamWriter("RoastSharp" + DateTime.Now.ToString("yyyy-MM-dd-hh-mm-ss") + ".csv", false);
-            m_StartTicks = DateTime.Now.Ticks;
-
-            m_Started = true;
+            RoastSharp.Start();
 
             m_TemperatureValues.Clear();
             m_AvgTemperatureValues.Clear();
             m_RateOfRiseValues.Clear();
-            m_RoastStopwatch.Restart();
+            RoastChart.VisualElements.Clear();
+            RoastChart.AxisX[0].Sections.Clear();
 
             FcStartButton.Enabled = true;
             EventButton.Enabled = true;
@@ -352,11 +259,9 @@ namespace RoastSharp
 
         private void EndButton_Click(object sender, EventArgs e)
         {
-            m_RoastLog.Close();
+            RoastSharp.Stop();
 
-            m_Started = false;
-            m_MovingAvgHistory.Clear();
-
+            StartButton.Enabled = true;
             FcStartButton.Enabled = false;
             FcEndButton.Enabled = false;
             ScEndButton.Enabled = false;
@@ -369,20 +274,21 @@ namespace RoastSharp
         {
             RoastChart.AxisX[0].Sections.Add(new AxisSection
             {
-                Value = m_LastTime,
+                Value = RoastSharp.LastTime,
                 Stroke = System.Windows.Media.Brushes.YellowGreen,
                 StrokeThickness = 1,
             });
 
+            (int minutes, int seconds) = Utils.GetMinuteSecondsFromMillis(RoastSharp.LastTime);
             RoastChart.VisualElements.Add(new VisualElement
             {
-                X = m_LastTime,
-                Y = m_LastTemperature,
+                X = RoastSharp.LastTime,
+                Y = RoastSharp.LastTemperature + 5,
                 HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Top,
-                UIElement = new TextBlock //notice this property must be a wpf control
+                UIElement = new TextBlock
                 {
-                    Text = "FC Start",
+                    Text = "FC Start " + minutes + ":" + string.Format("{0:00}", seconds),
                     FontWeight = FontWeights.Bold,
                     Foreground = System.Windows.Media.Brushes.MintCream,
                     FontSize = 16,
@@ -397,20 +303,21 @@ namespace RoastSharp
         {
             RoastChart.AxisX[0].Sections.Add(new AxisSection
             {
-                Value = m_LastTime,
+                Value = RoastSharp.LastTime,
                 Stroke = System.Windows.Media.Brushes.YellowGreen,
                 StrokeThickness = 1,
             });
 
+            (int minutes, int seconds) = Utils.GetMinuteSecondsFromMillis(RoastSharp.LastTime);
             RoastChart.VisualElements.Add(new VisualElement
             {
-                X = m_LastTime,
-                Y = m_LastTemperature,
+                X = RoastSharp.LastTime,
+                Y = RoastSharp.LastTemperature + 5,
                 HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Top,
-                UIElement = new TextBlock //notice this property must be a wpf control
+                UIElement = new TextBlock
                 {
-                    Text = "FC End",
+                    Text = "FC End " + minutes + ":" + string.Format("{0:00}", seconds),
                     FontWeight = FontWeights.Bold,
                     Foreground = System.Windows.Media.Brushes.MintCream,
                     FontSize = 16,
@@ -425,20 +332,21 @@ namespace RoastSharp
         {
             RoastChart.AxisX[0].Sections.Add(new AxisSection
             {
-                Value = m_LastTime,
+                Value = RoastSharp.LastTime,
                 Stroke = System.Windows.Media.Brushes.YellowGreen,
                 StrokeThickness = 1,
             });
 
+            (int minutes, int seconds) = Utils.GetMinuteSecondsFromMillis(RoastSharp.LastTime);
             RoastChart.VisualElements.Add(new VisualElement
             {
-                X = m_LastTime,
-                Y = m_LastTemperature,
+                X = RoastSharp.LastTime,
+                Y = RoastSharp.LastTemperature + 5,
                 HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Top,
-                UIElement = new TextBlock //notice this property must be a wpf control
+                UIElement = new TextBlock
                 {
-                    Text = "SC Start",
+                    Text = "SC Start " + minutes + ":" + string.Format("{0:00}", seconds),
                     FontWeight = FontWeights.Bold,
                     Foreground = System.Windows.Media.Brushes.MintCream,
                     FontSize = 16,
@@ -453,20 +361,21 @@ namespace RoastSharp
         {
             RoastChart.AxisX[0].Sections.Add(new AxisSection
             {
-                Value = m_LastTime,
+                Value = RoastSharp.LastTime,
                 Stroke = System.Windows.Media.Brushes.YellowGreen,
                 StrokeThickness = 1,
             });
 
+            (int minutes, int seconds) = Utils.GetMinuteSecondsFromMillis(RoastSharp.LastTime);
             RoastChart.VisualElements.Add(new VisualElement
             {
-                X = m_LastTime,
-                Y = m_LastTemperature,
+                X = RoastSharp.LastTime,
+                Y = RoastSharp.LastTemperature + 5,
                 HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Top,
-                UIElement = new TextBlock //notice this property must be a wpf control
+                UIElement = new TextBlock
                 {
-                    Text = "SC End",
+                    Text = "SC End " + minutes + ":" + string.Format("{0:00}", seconds),
                     FontWeight = FontWeights.Bold,
                     Foreground = System.Windows.Media.Brushes.MintCream,
                     FontSize = 16,
@@ -480,95 +389,73 @@ namespace RoastSharp
         {
             RoastChart.AxisX[0].Sections.Add(new AxisSection
             {
-                Value = m_LastTime,
+                Value = RoastSharp.LastTime,
                 Stroke = System.Windows.Media.Brushes.YellowGreen,
                 StrokeThickness = 1,
             });
 
+            (int minutes, int seconds) = Utils.GetMinuteSecondsFromMillis(RoastSharp.LastTime);
             RoastChart.VisualElements.Add(new VisualElement
             {
-                X = m_LastTime,
-                Y = m_LastTemperature,
+                X = RoastSharp.LastTime,
+                Y = RoastSharp.LastTemperature + 5,
                 HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Top,
-                UIElement = new TextBlock //notice this property must be a wpf control
+                UIElement = new TextBlock
                 {
-                    Text = "Event " + m_Eventno,
+                    Text = "Event " + RoastSharp.EventNumber + " " + minutes + ":" + string.Format("{0:00}", seconds),
                     FontWeight = FontWeights.Bold,
                     Foreground = System.Windows.Media.Brushes.MintCream,
                     FontSize = 16,
                 }
             });
 
-            m_Eventno++;
-        }
-
-        private void PlotTemperature(double temperature, double avgtemperature, double time)
-        {
-            m_TemperatureValues.Add(new XYDoubleMapper
-            {
-                X = time,
-                Y = temperature
-            });
-
-            m_AvgTemperatureValues.Add(new XYDoubleMapper
-            {
-                X = time,
-                Y = avgtemperature
-            });
-        }
-
-        private void PlotRor(double ror, double time)
-        {
-            m_RateOfRiseValues.Add(new XYDoubleMapper
-            {
-                X = time,
-                Y = ror
-            });
-        }
-
-        private void SetTemperature(double temperature)
-        {
-            if (TempLabel.InvokeRequired)
-                TempLabel.Invoke(new MethodInvoker(() => { SetTemperature(temperature); }));
-
-            TempLabel.Text = string.Format("{0:000.00}", temperature) + "°C";
-        }
-
-        private void SetAvgTemperature(double temperature)
-        {
-            if (AvgTempLabel.InvokeRequired)
-                AvgTempLabel.Invoke(new MethodInvoker(() => { SetAvgTemperature(temperature); }));
-
-            AvgTempLabel.Text = string.Format("{0:000.00}", temperature) + "°C";
-        }
-
-        private void SetTime(string time)
-        {
-            if (TimeLabel.InvokeRequired)
-                TimeLabel.Invoke(new MethodInvoker(() => { SetTime(time); }));
-
-            TimeLabel.Text = time;
-        }
-
-        private void SetRor(double ror)
-        {
-            if (RorLabel.InvokeRequired)
-                RorLabel.Invoke(new MethodInvoker(() => { SetRor(ror); }));
-
-            RorLabel.Text = string.Format("{0:00.0}", ror) + "°C/min";
+            RoastSharp.EventNumber += 1;
         }
 
         private void SettingsButton_Click(object sender, EventArgs e)
         {
-            SettingsUi sf = new SettingsUi(this);
+            SettingsUi sf = new SettingsUi(RoastChart.AxisX[0].Separator.Step);
             sf.ShowDialog();
 
-            ComString = sf.ComString;
-            MovingAvgSamples = sf.MovingAvgSamples;
-            RorSampleTime = sf.RorSampleTime;
-            RorDelayTime = sf.RorDelayTime;
+            RoastSharp.ComString = sf.ComString;
+            RoastSharp.MovingAvgSamples = sf.MovingAvgSamples;
+            RoastSharp.RorSampleTime = sf.RorSampleTime;
+            RoastSharp.RorDelayTime = sf.RorDelayTime;
+            RoastSharp.BaudRate = sf.BaudRate;
+
+            RoastChart.AxisX[0].Separator.Step = sf.XSteps;
         }
+
+        #endregion
+
+        #region UI Helpers
+        private void SetButtonEnable(System.Windows.Forms.Button button, bool enable)
+        {
+            if (button.InvokeRequired)
+                button.Invoke(new MethodInvoker(() => { SetButtonEnable(button, enable); }));
+
+            button.Enabled = enable;
+        }
+
+        private void ResetForm()
+        {
+            if (InvokeRequired)
+                Invoke(new MethodInvoker(() => { ResetForm(); }));
+
+            ConnectButton.Text = "Connect";
+
+            StartButton.Enabled = false;
+            FcStartButton.Enabled = false;
+            FcEndButton.Enabled = false;
+            ScEndButton.Enabled = false;
+            ScStartButton.Enabled = false;
+            EndButton.Enabled = false;
+            EventButton.Enabled = false;
+            SettingsButton.Enabled = true;
+        }
+
+        #endregion
     }
 
     public class XYDoubleMapper

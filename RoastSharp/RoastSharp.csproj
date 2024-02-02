@@ -8,10 +8,11 @@
     <OutputType>WinExe</OutputType>
     <RootNamespace>RoastSharp</RootNamespace>
     <AssemblyName>RoastSharp</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -34,6 +35,9 @@
   </PropertyGroup>
   <PropertyGroup>
     <ApplicationIcon>logo_small.ico</ApplicationIcon>
+  </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject />
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="LiveCharts, Version=0.9.7.0, Culture=neutral, PublicKeyToken=0bc1f845d1ebb8df, processorArchitecture=MSIL">
@@ -64,6 +68,7 @@
     <Reference Include="WindowsFormsIntegration" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="RoastSharp.cs" />
     <Compile Include="RoastSharpUi.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -78,6 +83,7 @@
     <Compile Include="SettingsUi.Designer.cs">
       <DependentUpon>SettingsUi.cs</DependentUpon>
     </Compile>
+    <Compile Include="Utils.cs" />
     <EmbeddedResource Include="RoastSharpUi.resx">
       <DependentUpon>RoastSharpUi.cs</DependentUpon>
     </EmbeddedResource>

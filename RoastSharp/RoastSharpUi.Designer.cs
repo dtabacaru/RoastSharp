@@ -33,6 +33,8 @@
             this.TempLabel = new System.Windows.Forms.Label();
             this.StartButton = new System.Windows.Forms.Button();
             this.ControlPanel = new System.Windows.Forms.Panel();
+            this.RoastTimeLabel = new System.Windows.Forms.Label();
+            this.SettingsButton = new System.Windows.Forms.Button();
             this.RorLabel = new System.Windows.Forms.Label();
             this.AvgTempLabel = new System.Windows.Forms.Label();
             this.EventButton = new System.Windows.Forms.Button();
@@ -43,7 +45,6 @@
             this.FcStartButton = new System.Windows.Forms.Button();
             this.TimeLabel = new System.Windows.Forms.Label();
             this.RoastChart = new LiveCharts.WinForms.CartesianChart();
-            this.SettingsButton = new System.Windows.Forms.Button();
             this.ControlPanel.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -93,6 +94,7 @@
             // ControlPanel
             // 
             this.ControlPanel.BackColor = System.Drawing.SystemColors.ActiveCaptionText;
+            this.ControlPanel.Controls.Add(this.RoastTimeLabel);
             this.ControlPanel.Controls.Add(this.SettingsButton);
             this.ControlPanel.Controls.Add(this.RorLabel);
             this.ControlPanel.Controls.Add(this.AvgTempLabel);
@@ -112,6 +114,33 @@
             this.ControlPanel.Size = new System.Drawing.Size(1284, 99);
             this.ControlPanel.TabIndex = 8;
             // 
+            // RoastTimeLabel
+            // 
+            this.RoastTimeLabel.Anchor = System.Windows.Forms.AnchorStyles.Right;
+            this.RoastTimeLabel.AutoSize = true;
+            this.RoastTimeLabel.Font = new System.Drawing.Font("Arial", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.RoastTimeLabel.ForeColor = System.Drawing.Color.White;
+            this.RoastTimeLabel.Location = new System.Drawing.Point(1087, 13);
+            this.RoastTimeLabel.Name = "RoastTimeLabel";
+            this.RoastTimeLabel.Size = new System.Drawing.Size(108, 16);
+            this.RoastTimeLabel.TabIndex = 14;
+            this.RoastTimeLabel.Text = "Total Roast Time:";
+            // 
+            // SettingsButton
+            // 
+            this.SettingsButton.Anchor = System.Windows.Forms.AnchorStyles.Left;
+            this.SettingsButton.BackColor = System.Drawing.Color.White;
+            this.SettingsButton.FlatStyle = System.Windows.Forms.FlatStyle.System;
+            this.SettingsButton.Font = new System.Drawing.Font("Arial", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.SettingsButton.ForeColor = System.Drawing.Color.MidnightBlue;
+            this.SettingsButton.Location = new System.Drawing.Point(12, 57);
+            this.SettingsButton.Name = "SettingsButton";
+            this.SettingsButton.Size = new System.Drawing.Size(118, 24);
+            this.SettingsButton.TabIndex = 13;
+            this.SettingsButton.Text = "Settings";
+            this.SettingsButton.UseVisualStyleBackColor = false;
+            this.SettingsButton.Click += new System.EventHandler(this.SettingsButton_Click);
+            // 
             // RorLabel
             // 
             this.RorLabel.Anchor = System.Windows.Forms.AnchorStyles.Right;
@@ -120,7 +149,7 @@
             this.RorLabel.ForeColor = System.Drawing.Color.Red;
             this.RorLabel.Location = new System.Drawing.Point(862, 25);
             this.RorLabel.Name = "RorLabel";
-            this.RorLabel.Size = new System.Drawing.Size(211, 44);
+            this.RorLabel.Size = new System.Drawing.Size(210, 44);
             this.RorLabel.TabIndex = 12;
             this.RorLabel.Text = "00.0°C/min";
             // 
@@ -132,7 +161,7 @@
             this.AvgTempLabel.ForeColor = System.Drawing.Color.Aqua;
             this.AvgTempLabel.Location = new System.Drawing.Point(679, 25);
             this.AvgTempLabel.Name = "AvgTempLabel";
-            this.AvgTempLabel.Size = new System.Drawing.Size(177, 44);
+            this.AvgTempLabel.Size = new System.Drawing.Size(176, 44);
             this.AvgTempLabel.TabIndex = 11;
             this.AvgTempLabel.Text = "000.00°C";
             // 
@@ -240,14 +269,14 @@
             this.TimeLabel.ForeColor = System.Drawing.Color.MintCream;
             this.TimeLabel.Location = new System.Drawing.Point(1079, 25);
             this.TimeLabel.Name = "TimeLabel";
-            this.TimeLabel.Size = new System.Drawing.Size(193, 44);
+            this.TimeLabel.Size = new System.Drawing.Size(192, 44);
             this.TimeLabel.TabIndex = 4;
             this.TimeLabel.Text = "00:00:000";
             // 
             // RoastChart
             // 
-            this.RoastChart.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
-            | System.Windows.Forms.AnchorStyles.Left)
+            this.RoastChart.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.RoastChart.BackColor = System.Drawing.SystemColors.ActiveCaptionText;
             this.RoastChart.Location = new System.Drawing.Point(0, 86);
@@ -255,21 +284,6 @@
             this.RoastChart.Size = new System.Drawing.Size(1284, 475);
             this.RoastChart.TabIndex = 9;
             this.RoastChart.Text = "cartesianChart1";
-            // 
-            // SettingsButton
-            // 
-            this.SettingsButton.Anchor = System.Windows.Forms.AnchorStyles.Left;
-            this.SettingsButton.BackColor = System.Drawing.Color.White;
-            this.SettingsButton.FlatStyle = System.Windows.Forms.FlatStyle.System;
-            this.SettingsButton.Font = new System.Drawing.Font("Arial", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.SettingsButton.ForeColor = System.Drawing.Color.MidnightBlue;
-            this.SettingsButton.Location = new System.Drawing.Point(12, 57);
-            this.SettingsButton.Name = "SettingsButton";
-            this.SettingsButton.Size = new System.Drawing.Size(118, 24);
-            this.SettingsButton.TabIndex = 13;
-            this.SettingsButton.Text = "Settings";
-            this.SettingsButton.UseVisualStyleBackColor = false;
-            this.SettingsButton.Click += new System.EventHandler(this.SettingsButton_Click);
             // 
             // RoastSharpUi
             // 
@@ -304,6 +318,7 @@
         private System.Windows.Forms.Label AvgTempLabel;
         private System.Windows.Forms.Label RorLabel;
         private System.Windows.Forms.Button SettingsButton;
+        private System.Windows.Forms.Label RoastTimeLabel;
     }
 }
 

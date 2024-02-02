@@ -1,13 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.IO.Ports;
-using System.Linq;
-using System.Management;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace RoastSharp
@@ -15,47 +7,50 @@ namespace RoastSharp
     public partial class SettingsUi : Form
     {
         public string ComString = string.Empty;
+        public int BaudRate = 115200;
         public int MovingAvgSamples = 16;
         public int RorSampleTime = 15;
         public int RorDelayTime = 30;
+        public bool EnableLogging = false;
+        public double XSteps = 30;
 
-        public SettingsUi(RoastSharpUi rsui)
+        public SettingsUi(double xsteps)
         {
             InitializeComponent();
 
-            List<string> comPorts;
+            List<string> comPorts = Utils.ListComPorts();
 
-            using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PnPEntity WHERE Caption like '%(COM%'"))
+            ComPortDropDown.Items.AddRange(comPorts.ToArray());
+
+            if (RoastSharp.ComString != string.Empty)
             {
-                string[] portnames = SerialPort.GetPortNames();
-                IEnumerable<string> ports = searcher.Get().Cast<ManagementBaseObject>().ToList().Select(p => p["Caption"].ToString());
-
-                List<string> test = new List<string>(ports);
-
-                comPorts = portnames.Select(n => ports.FirstOrDefault(s => s.Contains(n))).ToList();
-                ComPortDropDown.Items.AddRange(comPorts.ToArray());
-
-                if(rsui.ComString != string.Empty)
+                foreach (string port in comPorts)
                 {
-                    foreach (string port in comPorts)
+                    if (port.Contains(RoastSharp.ComString))
                     {
-                        if (port.Contains(rsui.ComString))
-                        {
-                            ComPortDropDown.SelectedItem = port;
-                            break;
-                        }
+                        ComPortDropDown.SelectedItem = port;
+                        break;
                     }
                 }
-
-                MovingAvgSamples = rsui.MovingAvgSamples;
-                SamplesTextBox.Value = MovingAvgSamples;
-
-                RorSampleTime = rsui.RorSampleTime;
-                RorSampleTimeTextBox.Value = RorSampleTime;
-
-                RorDelayTime = rsui.RorDelayTime;
-                RorDelayTimeTextBox.Value = RorDelayTime;
             }
+
+            BaudRate = RoastSharp.BaudRate;
+            BaudRateDropDown.SelectedIndex = BaudRateDropDown.Items.IndexOf(BaudRate.ToString());
+
+            MovingAvgSamples = RoastSharp.MovingAvgSamples;
+            SamplesTextBox.Value = MovingAvgSamples;
+
+            RorSampleTime = RoastSharp.RorSampleTime;
+            RorSampleTimeTextBox.Value = RorSampleTime;
+
+            RorDelayTime = RoastSharp.RorDelayTime;
+            RorDelayTimeTextBox.Value = RorDelayTime;
+
+            EnableLogging = RoastSharp.EnableLogging;
+            EnableLoggingCheckBox.Checked = EnableLogging;
+
+            XSteps = xsteps;
+            XStepsTextBox.Value = (decimal)XSteps/1000;
         }
 
         private void SettingsForm_FormClosed(object sender, FormClosedEventArgs e)
@@ -63,12 +58,16 @@ namespace RoastSharp
             RorDelayTime = (int)RorDelayTimeTextBox.Value;
             RorSampleTime = (int)RorSampleTimeTextBox.Value;
             MovingAvgSamples = (int)SamplesTextBox.Value;
+            XSteps = (double)XStepsTextBox.Value * 1000;
 
             if(ComPortDropDown.SelectedIndex >= 0)
             {
-                string comDescription = (string)ComPortDropDown.Items[ComPortDropDown.SelectedIndex];
-                ComString = comDescription.Split('(')[1].Replace(")", "");
+                string comDescription = ComPortDropDown.Items[ComPortDropDown.SelectedIndex].ToString();
+                ComString = Utils.ExtractComPort(comDescription);
             }
+
+            BaudRate = Convert.ToInt32(BaudRateDropDown.Items[BaudRateDropDown.SelectedIndex].ToString());
+            EnableLogging = EnableLoggingCheckBox.Checked;
         }
     }
 }
